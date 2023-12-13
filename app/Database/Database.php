@@ -4,6 +4,7 @@ namespace App\Database;
 
 use App\Configs\Config;
 
+const ENGINE = Config::ENGINE;
 const HOSTNAME = Config::HOSTNAME;
 const PORT     = Config::PORT;
 const DBNAME   = Config::DBNAME;
@@ -21,25 +22,25 @@ use \PDO as PDO;
 class Database
 {
 
-  private PDO $conn;
+   private PDO $conn;
 
 
-  function __construct()
-  {
-    $this->connect();
-    $this->init();
-  }
+   function __construct()
+   {
+      $this->connect();
+      $this->init();
+   }
 
 
-  function __destruct()
-  {
-    $this->disconnect();
-  }
+   function __destruct()
+   {
+      $this->disconnect();
+   }
 
 
-  function init()
-  {
-    $sql = <<<TXT
+   function init()
+   {
+      $sql = <<<TXT
     USE ofppt_api;
 
     CREATE TABLE IF NOT EXISTS todos (
@@ -52,65 +53,76 @@ class Database
 
 
 
-    if (!$this->isConnected()) $this->connect();
+      if (!$this->isConnected()) $this->connect();
 
-    if ($this->isConnected()) {
+      if ($this->isConnected()) {
 
-      if ($this->execute('describe ofppt_api.todos')) {
-        return;
+         try {
+            if ($this->execute('describe ofppt_api.todos')) {
+               return;
+            }
+         } catch (\Throwable $th) {}
+
+         $this->execute($sql);
+
+         $this->execute('truncate todos');
+
+         for ($i = 1; $i <= MAX_INIT_ROWS; $i++) {
+
+            $userId = rand(1, 10);
+            $title = "Todo-$i";
+            $completed = rand(0, 1);
+
+            $this->execute(
+               "insert into todos (userId, title, completed) values(?,?,?)",
+               [$userId, $title, $completed]
+            );
+         }
       }
-
-      $this->execute($sql);
-
-      $this->execute('truncate todos');
-
-      for ($i = 1; $i <= MAX_INIT_ROWS; $i++) {
-
-        $userId = rand(1, 10);
-        $title = "Todo-$i";
-        $completed = rand(0, 1);
-
-        $this->execute(
-          "insert into todos (userId, title, completed) values(?,?,?)",
-          [$userId, $title, $completed]
-        );
-      }
-    }
-  }
+   }
 
 
-  private function connect()
-  {
-    $dsn = sprintf("mysql: host=%s; port=%d; dbname=%s", HOSTNAME, PORT, DBNAME);
-    $this->conn = new PDO($dsn, USERNAME, PASSWORD);
-  }
+   private function connect()
+   {
+      $dsn = sprintf("%s: host=%s; port=%d; dbname=%s", ENGINE, HOSTNAME, PORT, DBNAME);
+      $this->conn = new PDO($dsn, USERNAME, PASSWORD);
+   }
 
 
-  function isConnected(): bool
-  {
-    return !is_null($this->conn);
-  }
+   function isConnected(): bool
+   {
+      return !is_null($this->conn);
+   }
 
 
-  function disconnect()
-  {
-    unset($this->conn);
-  }
+   function disconnect()
+   {
+      unset($this->conn);
+   }
 
 
-  function execute(string $sql, ?array $params = null): bool
-  {
-    $stmt = $this->conn->prepare($sql);
-    return $stmt->execute($params);
-  }
+   function execute(string $sql, ?array $params = null): bool
+   {
+      $stmt = $this->conn->prepare($sql);
+      return $stmt->execute($params);
+   }
 
 
-  function query(string $sql, ?array $params = null, int $mode = \PDO::FETCH_ASSOC, ?string $class = null): array | false
-  {
-    $stmt = $this->conn->prepare($sql);
-    $stmt->execute($params);
-    $res = ($class === null) ? $stmt->fetchAll($mode) : $stmt->fetchAll($mode, $class);
-    $stmt->closeCursor();
-    return $res;
-  }
+   function query(string $sql, ?array $params = null, int $mode = \PDO::FETCH_ASSOC, ?string $class = null): array | false
+   {
+      $stmt = $this->conn->prepare($sql);
+      $stmt->execute($params);
+      $res = ($class === null) ? $stmt->fetchAll($mode) : $stmt->fetchAll($mode, $class);
+      $stmt->closeCursor();
+
+      /**
+       * casting integers 1 and 0 into booleans
+       */
+      $res =  array_map(function ($row) {
+         $row["completed"] = (bool) $row["completed"];
+         return $row;
+      }, $res);
+
+      return $res;
+   }
 }

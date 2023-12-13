@@ -25,7 +25,7 @@ if(! isset($resources[$resource])) {
 if(Functions::is_get()) {
    switch(count($arrPath)) {
       case 2:
-         $controller->index();
+         $controller->index($_GET['userId'] ?? false);
          break;
       case 3:
          $id = (int) $arrPath[2];
